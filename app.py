@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yt_dlp
+import traceback
 
 app = Flask(__name__)
-CORS(app)  # allow all origins (frontend)
+CORS(app)  # allow all frontend origins
 
 @app.route("/")
 def home():
@@ -12,38 +13,42 @@ def home():
 
 @app.route("/download", methods=["POST", "OPTIONS"])
 def download_video():
-    # Handle preflight CORS request
+    # Handle browser preflight (CORS check)
     if request.method == "OPTIONS":
         return jsonify({"message": "CORS OK"}), 200
 
     try:
+        # Get the JSON body
         data = request.get_json()
         if not data or "url" not in data:
             return jsonify({"error": "❌ No URL provided"}), 400
 
-        video_url = data["url"]
-        print(f"🎥 Processing URL: {video_url}")
+        video_url = data["url"].strip()
+        print(f"🎥 Extracting info from: {video_url}")
 
-        # Extract video info (not download)
+        # yt-dlp options
         ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
+            "quiet": False,
+            "no_warnings": False,
             "format": "best",
         }
 
+        # Extract video metadata (not download)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
-            video_title = info.get("title", "Unknown Title")
-            video_url = info.get("url")
 
-            return jsonify({
-                "title": video_title,
-                "direct_url": video_url
-            }), 200
+        video_title = info.get("title", "Unknown Title")
+        stream_url = info.get("url")
+
+        print(f"✅ Extracted: {video_title}")
+        return jsonify({
+            "title": video_title,
+            "direct_url": stream_url
+        }), 200
 
     except Exception as e:
-        import traceback
-        print("❌ Error:", traceback.format_exc())  # will show up in Render logs
+        print("❌ Error in /download route:")
+        print(traceback.format_exc())  # visible in Render logs
         return jsonify({"error": str(e)}), 500
 
 
