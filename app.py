@@ -21,19 +21,18 @@ def download_video():
 
     video_url = data["url"]
     try:
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "format": "best",
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=False)
-            return jsonify({
-                "title": info.get("title"),
-                "url": info.get("url"),
-            }), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    ydl_opts = {"quiet": False, "no_warnings": False, "format": "best"}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(video_url, download=False)
+        return jsonify({
+            "title": info.get("title"),
+            "url": info.get("url"),
+        }), 200
+except Exception as e:
+    import traceback
+    print("❌ ERROR in /download:", traceback.format_exc())
+    return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == "__main__":
