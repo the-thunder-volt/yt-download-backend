@@ -2,16 +2,18 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import yt_dlp
 import traceback
-from pathlib import Path
 import os
-import time
+import shutil
+import uuid
+import subprocess
 
 app = Flask(__name__)
 CORS(app)
 
-# Temporary download directory
-TEMP_DIR = Path(__file__).parent / "temp_downloads"
-TEMP_DIR.mkdir(exist_ok=True)
+# Temporary download folder
+TEMP_DIR = os.path.join(os.path.dirname(__file__), "temp_downloads")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
 
 @app.route("/")
 def home():
@@ -29,73 +31,66 @@ def download_video():
             return jsonify({"error": "❌ No URL provided"}), 400
 
         video_url = data["url"].strip()
-        print(f"🎥 Downloading from: {video_url}")
+        print(f"🎥 Downloading: {video_url}")
 
-        # output template (temporary file)
-        output_template = str(TEMP_DIR / "%(title)s.%(ext)s")
+        # Create a unique temp folder for each request
+        session_id = str(uuid.uuid4())[:8]
+        session_path = os.path.join(TEMP_DIR, session_id)
+        os.makedirs(session_path, exist_ok=True)
 
-        # yt-dlp options: best video + MP3 audio + merged MP4 output
+        output_template = os.path.join(session_path, "video.%(ext)s")
+
+        # yt-dlp options
         ydl_opts = {
-    "format": "bestvideo+bestaudio/best",
-    "merge_output_format": "mp4",
-    "outtmpl": output_template,
-    "quiet": False,
-    "http_headers": {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "en-US,en;q=0.9",
-    },
-    "postprocessors": [
-        {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"},
-        {"key": "FFmpegVideoConvertor", "preferedformat": "mp4"},
-    ],
-}
+            "format": "bestvideo+bestaudio/best",
+            "outtmpl": output_template,
+            "merge_output_format": "mp4",
+            "quiet": True,
+            "no_warnings": True,
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        }
 
-
+        # Download video + audio
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
-            downloaded_file = ydl.prepare_filename(info)
+            title = info.get("title", "video")
+            final_path = os.path.join(session_path, f"{title}.mp4")
 
-        # Ensure final mp4 filename
-        final_path = Path(downloaded_file).with_suffix(".mp4")
-        if not final_path.exists():
-            for ext in [".webm", ".mkv", ".m4a"]:
-                alt = Path(downloaded_file).with_suffix(ext)
-                if alt.exists():
-                    alt.rename(final_path)
-                    break
+        # Sometimes yt-dlp outputs generic filenames like "video.mp4"
+        if not os.path.exists(final_path):
+            generic_path = os.path.join(session_path, "video.mp4")
+            if os.path.exists(generic_path):
+                os.rename(generic_path, final_path)
 
-        print(f"✅ Sending file: {final_path.name}")
+        print(f"✅ Merged & ready: {final_path}")
 
-        # Send file to frontend for direct download
-        response = send_file(
-            str(final_path),
+        # Send the file to the frontend
+        return send_file(
+            final_path,
             as_attachment=True,
-            download_name=final_path.name,
-            mimetype="video/mp4"
+            download_name=f"{title}.mp4",
+            mimetype="video/mp4",
         )
-
-        # Schedule deletion after short delay (safe cleanup)
-        def remove_file(path):
-            time.sleep(3)  # give time to finish sending
-            try:
-                os.remove(path)
-                print(f"🗑️ Deleted temp file: {path}")
-            except Exception as e:
-                print(f"⚠️ Could not delete {path}: {e}")
-
-        import threading
-        threading.Thread(target=remove_file, args=(final_path,)).start()
-
-        return response
 
     except Exception as e:
         print("❌ Error in /download route:")
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
+    finally:
+        # Cleanup: delete the temp folder for this session
+        try:
+            if os.path.exists(session_path):
+                shutil.rmtree(session_path)
+        except Exception as cleanup_err:
+            print(f"⚠️ Cleanup failed: {cleanup_err}")
 
 
 if __name__ == "__main__":
