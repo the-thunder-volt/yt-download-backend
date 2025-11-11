@@ -36,22 +36,24 @@ def download_video():
 
         # yt-dlp options: best video + MP3 audio + merged MP4 output
         ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "merge_output_format": "mp4",
-            "outtmpl": output_template,
-            "quiet": False,
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                },
-                {
-                    "key": "FFmpegVideoConvertor",
-                    "preferedformat": "mp4",
-                },
-            ],
-        }
+    "format": "bestvideo+bestaudio/best",
+    "merge_output_format": "mp4",
+    "outtmpl": output_template,
+    "quiet": False,
+    "http_headers": {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    },
+    "postprocessors": [
+        {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"},
+        {"key": "FFmpegVideoConvertor", "preferedformat": "mp4"},
+    ],
+}
+
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
