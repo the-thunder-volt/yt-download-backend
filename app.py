@@ -24,7 +24,7 @@ def get_title():
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
-        ydl_opts = {"quiet": True, "skip_download": True,"cookiesfrombrowser": (),}
+        ydl_opts = {"quiet": True, "skip_download": True,"cookiesfrombrowser": None}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
         title = info.get("title", "video")
@@ -51,7 +51,7 @@ def download_video():
             return jsonify({"error": "No URL provided"}), 400
 
         # Extract title
-        ydl_opts_info = {"quiet": True, "skip_download": True,"cookiesfrombrowser": (),}
+        ydl_opts_info = {"quiet": True, "skip_download": True,"cookiesfrombrowser": None}
         with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
             info = ydl.extract_info(url, download=False)
         title = info.get("title", "video")
@@ -64,7 +64,7 @@ def download_video():
             "format": "bestvideo",
             "outtmpl": raw_video_path,
             "quiet": True,
-            "cookiesfrombrowser": (),
+            "cookiesfrombrowser": None
         }
         with yt_dlp.YoutubeDL(ydl_video_opts) as ydl:
             ydl.download([url])
@@ -100,7 +100,7 @@ def download_video():
                 "preferredquality": "192"
             }],
             "quiet": True,
-            "cookiesfrombrowser": (),
+            "cookiesfrombrowser": None
         }
         with yt_dlp.YoutubeDL(ydl_audio_opts) as ydl:
             ydl.download([url])
